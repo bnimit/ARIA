@@ -75,35 +75,17 @@ cd ARIA
 bun install
 ```
 
-### 3. Configure environment
+### 3. Configure environment (optional for local dev)
 
-```bash
-cp .env.example .env
-```
+No `.env` file is required for local development. Every variable has a hardcoded fallback that matches the `docker-compose.yml` defaults, so the app runs out of the box.
 
-Open `.env` and fill in:
+The only case where you need a `.env` is **production**, where you should set:
 
 ```env
-# Database (matches docker-compose defaults — no change needed locally)
-DATABASE_URL=postgresql://intel:intel@localhost:5435/reddit_intel
-
-# Redis (matches docker-compose defaults)
-REDIS_URL=redis://localhost:6381
-
-# API
-PORT=3001
-FRONTEND_URL=http://localhost:3000
-
-# Web
-NEXT_PUBLIC_API_URL=http://localhost:3001
-
-# AI keys — add at least one
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=AIza...
+JWT_SECRET=<output of: openssl rand -hex 32>
 ```
 
-> AI keys can also be entered directly in the app's **Settings** page after signing up — they are stored encrypted in the database.
+AI provider keys (Anthropic, OpenAI, Gemini) are **not** read from environment variables. They are entered through the **Settings** page in the UI after signing up and stored in the database.
 
 ### 4. Start infrastructure
 
@@ -163,19 +145,18 @@ Add or update AI provider keys at **Settings → API Keys**.
 
 ## Environment Variables Reference
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `REDIS_URL` | Yes | Redis connection string (BullMQ) |
-| `PORT` | No | API port (default: `3001`) |
-| `FRONTEND_URL` | No | Allowed CORS origin (default: `http://localhost:3000`) |
-| `NEXT_PUBLIC_API_URL` | No | API base URL for the browser (default: `http://localhost:3001`) |
-| `JWT_SECRET` | No | JWT signing secret — **set this in production** |
-| `ANTHROPIC_API_KEY` | No* | Anthropic API key (can be set in UI) |
-| `OPENAI_API_KEY` | No* | OpenAI API key (can be set in UI) |
-| `GEMINI_API_KEY` | No* | Google Gemini API key (can be set in UI) |
+All variables are optional locally — hardcoded fallbacks cover the `docker-compose.yml` defaults.
 
-*At least one AI key is required to run analyses.
+| Variable | Default | Notes |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://intel:intel@localhost:5435/reddit_intel` | Change if you modify docker-compose |
+| `REDIS_URL` | `redis://localhost:6381` | Change if you modify docker-compose |
+| `PORT` | `3001` | API listen port |
+| `FRONTEND_URL` | `http://localhost:3000` | CORS allowed origin |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3001` | API base URL used by the browser |
+| `JWT_SECRET` | `aria-dev-secret-…` | **Set this in production** — `openssl rand -hex 32` |
+
+**AI provider keys are not environment variables.** They are entered in the app's Settings page and stored in the database. No `.env` entry needed.
 
 ---
 
