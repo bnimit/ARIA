@@ -179,36 +179,7 @@ Anti-detection measures applied per scrape session:
 
 ## Contributing
 
-Contributions are welcome. Please follow these steps:
-
-1. **Fork** the repository and create a feature branch:
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-
-2. **Make your changes.** Keep commits focused — one logical change per commit.
-
-3. **Run the build** before opening a PR:
-   ```bash
-   bun run build
-   ```
-
-4. **Open a Pull Request** against `main` with a clear description of what changed and why.
-
-### Guidelines
-
-- Follow the existing code style (TypeScript strict mode, Bun APIs preferred over Node equivalents)
-- Do not commit `.env` files or API keys
-- Keep PRs small and focused — large refactors should be discussed in an issue first
-- Add a brief description to your PR explaining the motivation
-
-### Reporting Issues
-
-Open an issue on GitHub with:
-- A clear title and description
-- Steps to reproduce (for bugs)
-- Expected vs actual behaviour
-- Your OS, Bun version, and Node version if relevant
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for bug reports, feature requests, development setup, coding standards, and the pull request process.
 
 ---
 
