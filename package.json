@@ -1,0 +1,17 @@
+{
+  "name": "reddit-intel",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "db:generate": "turbo run db:generate --filter=@reddit-intel/db",
+    "db:migrate": "turbo run db:migrate --filter=@reddit-intel/db"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.0"
+  },
+  "engines": { "bun": ">=1.1.0" },
+  "packageManager": "bun@1.3.5"
+}
