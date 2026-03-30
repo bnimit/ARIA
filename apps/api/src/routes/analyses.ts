@@ -140,23 +140,24 @@ export async function analysesRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: "Analysis not found" });
     }
 
-    const painPoints = analysis.painPoints as Array<{
-      theme: string;
-      description: string;
-      frequency: number;
-      quotes: string[];
-      relevanceToProduct?: string;
-      relevanceToArca?: string;
-    }>;
+    const rawData = analysis.painPoints as any;
 
-    const html = renderReportHtml({
+    // Support both new AnalysisReport format and legacy PainPoint[]
+    const isReport = rawData && !Array.isArray(rawData) && rawData.executiveSummary;
+    const reportData: ReportData = {
       subreddit: analysis.subredditName,
       model: analysis.model,
       totalPosts: analysis.totalPosts,
       totalComments: analysis.totalComments,
       createdAt: analysis.createdAt,
-      painPoints,
-    });
+      painPoints: isReport ? rawData.painPoints : rawData,
+      executiveSummary: isReport ? rawData.executiveSummary : null,
+      emergingThemes: isReport ? rawData.emergingThemes : [],
+      competitiveMentions: isReport ? rawData.competitiveMentions : [],
+      actionableOpportunities: isReport ? rawData.actionableOpportunities : [],
+    };
+
+    const html = renderReportHtml(reportData);
 
     let browser = null;
     try {
@@ -194,31 +195,94 @@ interface ReportData {
   createdAt: Date;
   painPoints: Array<{
     theme: string;
+    category?: string;
     description: string;
     frequency: number;
+    severity?: string;
+    sentiment?: string;
     quotes: string[];
     relevanceToProduct?: string;
     relevanceToArca?: string;
   }>;
+  executiveSummary?: {
+    headline: string;
+    narrative: string;
+    sentimentDistribution: { positive: number; neutral: number; negative: number };
+    confidence: number;
+    signalPostRatio: string;
+  } | null;
+  emergingThemes?: Array<{
+    theme: string;
+    description: string;
+    signalStrength: string;
+    quote: string;
+  }>;
+  competitiveMentions?: Array<{
+    name: string;
+    sentiment: string;
+    context: string;
+    frequency: number;
+  }>;
+  actionableOpportunities?: Array<{
+    opportunity: string;
+    evidence: string;
+    impact: string;
+    effort: string;
+  }>;
 }
 
 function renderReportHtml(data: ReportData): string {
-  const { subreddit, model, totalPosts, totalComments, createdAt, painPoints } = data;
+  const { subreddit, model, totalPosts, totalComments, createdAt, painPoints, executiveSummary, emergingThemes, competitiveMentions, actionableOpportunities } = data;
   const date = new Date(createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 
+  const severityColors: Record<string, string> = {
+    acute: '#dc2626',
+    chronic: '#d97706',
+    aspirational: '#2563eb',
+  };
+
+  // Executive summary section
+  const executiveSummaryHtml = executiveSummary ? `
+    <div class="executive-summary">
+      <div class="section-title" style="border-bottom-color: #4f46e5;">Executive Briefing</div>
+      <h2 style="font-size: 20px; color: #0f3460; margin-bottom: 10px; line-height: 1.3;">${escapeHtml(executiveSummary.headline)}</h2>
+      <p style="color: #374151; line-height: 1.7; margin-bottom: 16px;">${escapeHtml(executiveSummary.narrative)}</p>
+      <div style="display: flex; gap: 24px; font-size: 12px;">
+        <div>
+          <strong style="color: #64748b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;">Sentiment</strong>
+          <div style="margin-top: 4px;">
+            <span style="color: #22c55e;">${Math.round(executiveSummary.sentimentDistribution.positive * 100)}% pos</span> ·
+            <span style="color: #94a3b8;">${Math.round(executiveSummary.sentimentDistribution.neutral * 100)}% neutral</span> ·
+            <span style="color: #ef4444;">${Math.round(executiveSummary.sentimentDistribution.negative * 100)}% neg</span>
+          </div>
+        </div>
+        <div>
+          <strong style="color: #64748b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;">Confidence</strong>
+          <div style="margin-top: 4px; color: #374151;">${Math.round(executiveSummary.confidence * 100)}%</div>
+        </div>
+        <div>
+          <strong style="color: #64748b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;">Signal</strong>
+          <div style="margin-top: 4px; color: #374151;">${escapeHtml(executiveSummary.signalPostRatio)}</div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
   const painPointsHtml = painPoints
     .map(
       (pp, i) => `
-      <div class="pain-point">
+      <div class="pain-point" style="border-left-color: ${severityColors[pp.severity ?? 'chronic'] ?? '#d97706'};">
         <div class="pp-header">
           <span class="pp-rank">#${i + 1}</span>
           <h2 class="pp-theme">${escapeHtml(pp.theme)}</h2>
+          ${pp.severity ? `<span class="pp-severity" style="background: ${severityColors[pp.severity] ?? '#d97706'}15; color: ${severityColors[pp.severity] ?? '#d97706'}; border: 1px solid ${severityColors[pp.severity] ?? '#d97706'}30; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase;">${escapeHtml(pp.severity)}</span>` : ''}
           <span class="pp-freq">${pp.frequency} mentions</span>
         </div>
+        ${pp.category ? `<div style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">${escapeHtml(pp.category.replace(/_/g, ' '))}</div>` : ''}
         <p class="pp-description">${escapeHtml(pp.description)}</p>
         ${
           pp.quotes && pp.quotes.length > 0
@@ -227,7 +291,7 @@ function renderReportHtml(data: ReportData): string {
               .slice(0, 2)
               .map(
                 (q) =>
-                  `<blockquote class="pp-quote">${escapeHtml(q)}</blockquote>`,
+                  `<blockquote class="pp-quote" style="border-left-color: ${severityColors[pp.severity ?? 'chronic'] ?? '#cbd5e1'};">&ldquo;${escapeHtml(q)}&rdquo;</blockquote>`,
               )
               .join("")}
           </div>`
@@ -244,6 +308,72 @@ function renderReportHtml(data: ReportData): string {
     `,
     )
     .join("");
+
+  // Emerging themes section
+  const emergingHtml = emergingThemes && emergingThemes.length > 0 ? `
+    <div style="margin-top: 24px;">
+      <div class="section-title" style="border-bottom-color: #d97706;">Emerging Signals</div>
+      ${emergingThemes.map((t) => `
+        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 12px 16px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <strong style="font-size: 13px; color: #0f3460;">${escapeHtml(t.theme)}</strong>
+            <span style="font-size: 10px; color: #d97706; font-weight: 600; text-transform: uppercase;">${escapeHtml(t.signalStrength)}</span>
+          </div>
+          <p style="font-size: 12px; color: #374151; margin-bottom: 6px;">${escapeHtml(t.description)}</p>
+          ${t.quote ? `<blockquote style="border-left: 2px solid #fde68a; padding: 4px 10px; margin: 0; font-size: 11px; color: #6b7280; font-style: italic;">&ldquo;${escapeHtml(t.quote)}&rdquo;</blockquote>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  // Competitive mentions section
+  const competitiveHtml = competitiveMentions && competitiveMentions.length > 0 ? `
+    <div style="margin-top: 24px;">
+      <div class="section-title" style="border-bottom-color: #6366f1;">Competitive Landscape</div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #e2e8f0;">
+            <th style="text-align: left; padding: 8px 12px; color: #64748b; font-size: 10px; text-transform: uppercase;">Tool</th>
+            <th style="text-align: left; padding: 8px 12px; color: #64748b; font-size: 10px; text-transform: uppercase;">Sentiment</th>
+            <th style="text-align: left; padding: 8px 12px; color: #64748b; font-size: 10px; text-transform: uppercase;">Mentions</th>
+            <th style="text-align: left; padding: 8px 12px; color: #64748b; font-size: 10px; text-transform: uppercase;">Context</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${competitiveMentions.map((m) => {
+            const sentColor = m.sentiment === 'positive' ? '#22c55e' : m.sentiment === 'negative' ? '#ef4444' : '#d97706';
+            return `<tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 8px 12px; font-weight: 600;">${escapeHtml(m.name)}</td>
+              <td style="padding: 8px 12px; color: ${sentColor}; font-weight: 600;">${escapeHtml(m.sentiment)}</td>
+              <td style="padding: 8px 12px;">${m.frequency}x</td>
+              <td style="padding: 8px 12px; color: #6b7280;">${escapeHtml(m.context)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  // Actionable opportunities section
+  const opportunitiesHtml = actionableOpportunities && actionableOpportunities.length > 0 ? `
+    <div style="margin-top: 24px;">
+      <div class="section-title" style="border-bottom-color: #22c55e;">Actionable Opportunities</div>
+      ${actionableOpportunities.map((opp, i) => {
+        const impactColor = opp.impact === 'high' ? '#22c55e' : opp.impact === 'medium' ? '#d97706' : '#94a3b8';
+        return `
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <strong style="font-size: 13px; color: #0f3460;">${i + 1}. ${escapeHtml(opp.opportunity)}</strong>
+            <div style="display: flex; gap: 6px;">
+              <span style="font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: ${impactColor}15; color: ${impactColor}; text-transform: uppercase;">${escapeHtml(opp.impact)} impact</span>
+              <span style="font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: #f1f5f9; color: #64748b; text-transform: uppercase;">${escapeHtml(opp.effort)} effort</span>
+            </div>
+          </div>
+          <p style="font-size: 12px; color: #374151; line-height: 1.5;">${escapeHtml(opp.evidence)}</p>
+        </div>`;
+      }).join('')}
+    </div>
+  ` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -376,6 +506,13 @@ function renderReportHtml(data: ReportData): string {
       border-radius: 4px;
       padding: 6px 10px;
     }
+    .executive-summary {
+      background: linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(79,70,229,0.01) 100%);
+      border: 1.5px solid rgba(79,70,229,0.2);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 28px;
+    }
     .footer {
       text-align: center;
       padding: 20px 40px;
@@ -406,11 +543,15 @@ function renderReportHtml(data: ReportData): string {
     </div>
   </div>
   <div class="content">
+    ${executiveSummaryHtml}
     <div class="section-title">Top Pain Points (Ranked by Frequency)</div>
     ${painPointsHtml}
+    ${emergingHtml}
+    ${competitiveHtml}
+    ${opportunitiesHtml}
   </div>
   <div class="footer">
-    Generated by Reddit Intelligence &nbsp;&bull;&nbsp; reddit-intel
+    Generated by ARIA Reddit Intelligence &nbsp;&bull;&nbsp; reddit-intel
   </div>
 </body>
 </html>`;

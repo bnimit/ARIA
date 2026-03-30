@@ -31,12 +31,50 @@ export interface Job {
   createdAt: string;
 }
 
+export type Severity = 'acute' | 'chronic' | 'aspirational';
+
 export interface PainPoint {
   theme: string;
+  category: string;
   description: string;
   frequency: number;
+  severity: Severity;
+  sentiment: 'negative' | 'mixed' | 'neutral';
   quotes: string[];
   relevanceToProduct: string;
+}
+
+export interface CompetitiveMention {
+  name: string;
+  sentiment: 'positive' | 'negative' | 'mixed';
+  context: string;
+  frequency: number;
+}
+
+export interface ActionableOpportunity {
+  opportunity: string;
+  evidence: string;
+  impact: 'high' | 'medium' | 'low';
+  effort: 'high' | 'medium' | 'low';
+}
+
+export interface AnalysisReport {
+  executiveSummary: {
+    headline: string;
+    narrative: string;
+    sentimentDistribution: { positive: number; neutral: number; negative: number };
+    confidence: number;
+    signalPostRatio: string;
+  };
+  painPoints: PainPoint[];
+  emergingThemes: Array<{
+    theme: string;
+    description: string;
+    signalStrength: 'strong' | 'moderate' | 'weak';
+    quote: string;
+  }>;
+  competitiveMentions: CompetitiveMention[];
+  actionableOpportunities: ActionableOpportunity[];
 }
 
 export interface Analysis {
@@ -45,7 +83,7 @@ export interface Analysis {
   model: string;
   totalPosts: number;
   totalComments: number;
-  painPoints: PainPoint[];
+  painPoints: AnalysisReport | PainPoint[];
   createdAt: string;
 }
 

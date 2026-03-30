@@ -33,7 +33,8 @@ Pure TypeScript interfaces — no logic. Key shapes:
 - **`RedditComment`**: `{ id, postId, parentId: string|null, author, body, score, depth, scrapedAt }`
 - **`ScrapeProgress`**: `{ subreddit, lastAfter: string|null, pagesScraped, lastScrapedAt }`
 - **`PostWithComments`**: `{ post: RedditPost, comments: RedditComment[] }`
-- **`PainPoint`**: `{ theme, description, frequency, quotes: string[], relevanceToArca }`
+- **`PainPoint`**: `{ theme, category, description, frequency, severity, sentiment, quotes: string[], relevanceToProduct }`
+- **`AnalysisReport`**: `{ executiveSummary, painPoints: PainPoint[], emergingThemes, competitiveMentions, actionableOpportunities }`
 
 ### `browser.ts`
 Playwright browser factory with anti-detection hardening:
@@ -100,22 +101,21 @@ Key functions: `upsertPost`, `upsertComment`, `getProgress`, `updateProgress`, `
 `getAllPostsWithComments` fetches posts ordered by score DESC, then for each post fetches up to 20 comments ordered by score DESC. Returns `PostWithComments[]`.
 
 ### `analyzer.ts`
-Two-pass Claude analysis pipeline:
+Two-pass LLM analysis pipeline (supports Anthropic, OpenAI, Gemini):
 
-**Pass 1 — Haiku batch extraction:**
+**Pass 1 — Batch extraction (fast model):**
 - Batches all posts in groups of 25
 - Builds a text block per batch: each post formatted as `TITLE: ... / BODY: ... / COMMENTS: [+score] text...`
 - Comment filter: `score > 1 && body.length > 30 && author !== "[deleted]"` — top 6 per post, each truncated to 350 chars
 - Post body truncated to 600 chars
-- Model: `claude-haiku-4-5-20251001`, max_tokens 1500
-- Prompt focus: workflow, follow-up, lead management, communication, tools, time, admin, organization — NOT market conditions or client complaints
-- Returns JSON array: `{ theme, description, count, quote }`
+- Model: Haiku / GPT-4o-mini / Gemini Flash, max_tokens 2000
+- Prompt uses 2-shot examples, constrained 12-value category enum, severity (acute/chronic/aspirational), and tool mention extraction
+- Returns JSON array: `{ theme, category, description, severity, count, quote, tool_mentioned }`
 
-**Pass 2 — Sonnet aggregation:**
-- Feeds all batch results to `claude-sonnet-4-6`, max_tokens 4000
-- Merges overlapping themes, ranks by total frequency, picks 2 best quotes per theme
-- Returns final `PainPoint[]`: `{ theme, description, frequency, quotes[], relevanceToArca }`
-- Strips markdown fences before `JSON.parse`
+**Pass 2 — Aggregation (smarter model):**
+- Feeds all batch results to Sonnet / GPT-4o / Gemini Pro, max_tokens 8000
+- Produces a full `AnalysisReport` with: executive summary (headline, narrative, sentiment distribution, confidence), merged/ranked pain points, emerging themes, competitive mentions, and actionable opportunities
+- Strips markdown fences before `JSON.parse`; falls back gracefully if LLM returns a flat array
 
 **`toPushPayload` equivalent** — the `buildBatchText` function is the closest analog. It maps `PostWithComments[]` to a single string:
 ```

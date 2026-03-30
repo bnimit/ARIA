@@ -4,9 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PainPointCard } from './PainPointCard';
+import { AnalysisReportView } from './AnalysisReportView';
 import { JobProgress } from './JobProgress';
 import { Badge } from '@/components/ui/Badge';
-import { createJob, triggerAnalysis, getAnalysisPdfUrl, Analysis, Job } from '@/lib/api';
+import { createJob, triggerAnalysis, getAnalysisPdfUrl, Analysis, AnalysisReport, PainPoint, Job } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 interface SubredditDetailClientProps {
@@ -161,7 +162,11 @@ export function SubredditDetailClient({
       if (elapsedRef.current) clearInterval(elapsedRef.current);
       setAnalysisRunning(false);
       setAnalysisQueued(false);
-      toast('success', `Analysis complete — ${initialAnalyses[0]?.painPoints?.length ?? 0} pain points found`);
+      const ppData = initialAnalyses[0]?.painPoints;
+      const ppCount = ppData && !Array.isArray(ppData) && 'painPoints' in ppData
+        ? (ppData as AnalysisReport).painPoints.length
+        : Array.isArray(ppData) ? ppData.length : 0;
+      toast('success', `Analysis complete — ${ppCount} pain points found`);
     }
   }, [initialAnalyses.length, analysisRunning]);
 
@@ -417,7 +422,15 @@ export function SubredditDetailClient({
                         {analysis.model}
                       </div>
                       <span style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 500 }}>
-                        {analysis.painPoints.length} pain points identified
+                        {(() => {
+                          const data = analysis.painPoints;
+                          if (data && !Array.isArray(data) && 'painPoints' in data) {
+                            const report = data as AnalysisReport;
+                            return `${report.painPoints.length} pain points · ${report.emergingThemes?.length ?? 0} signals · ${report.competitiveMentions?.length ?? 0} tools`;
+                          }
+                          const arr = Array.isArray(data) ? data : [];
+                          return `${arr.length} pain points identified`;
+                        })()}
                       </span>
                       <span style={{ fontSize: '11px', color: 'var(--ink-3)', fontFamily: "'DM Mono', monospace", whiteSpace: 'nowrap' }}>
                         {analysis.totalPosts} posts · {analysis.totalComments} comments
@@ -466,27 +479,45 @@ export function SubredditDetailClient({
                     </div>
                   </button>
 
-                  {/* Expanded pain points */}
+                  {/* Expanded analysis content */}
                   {isExpanded && (
                     <div
                       style={{
                         borderTop: '1px solid var(--border)',
                         padding: '20px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px',
                         animation: 'fadeIn 0.15s ease',
                       }}
                     >
-                      {analysis.painPoints.length === 0 ? (
-                        <p style={{ fontSize: '13px', color: 'var(--ink-3)', textAlign: 'center', padding: '16px' }}>
-                          No pain points found in this analysis.
-                        </p>
-                      ) : (
-                        analysis.painPoints.map((pp, i) => (
-                          <PainPointCard key={i} painPoint={pp} index={i} />
-                        ))
-                      )}
+                      {(() => {
+                        // Detect new report format vs legacy flat array
+                        const data = analysis.painPoints;
+                        const isReport = data && !Array.isArray(data) && 'executiveSummary' in data;
+
+                        if (isReport) {
+                          const report = data as AnalysisReport;
+                          return report.painPoints.length === 0 ? (
+                            <p style={{ fontSize: '13px', color: 'var(--ink-3)', textAlign: 'center', padding: '16px' }}>
+                              No pain points found in this analysis.
+                            </p>
+                          ) : (
+                            <AnalysisReportView report={report} />
+                          );
+                        }
+
+                        // Legacy flat PainPoint[] format
+                        const painPoints = (Array.isArray(data) ? data : []) as PainPoint[];
+                        return painPoints.length === 0 ? (
+                          <p style={{ fontSize: '13px', color: 'var(--ink-3)', textAlign: 'center', padding: '16px' }}>
+                            No pain points found in this analysis.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {painPoints.map((pp, i) => (
+                              <PainPointCard key={i} painPoint={pp} index={i} />
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

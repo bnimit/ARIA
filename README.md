@@ -2,7 +2,7 @@
 
 > Scrape any subreddit, extract user pain points with AI, and turn raw Reddit discussions into structured product insights.
 
-ARIA combines a human-behaviour-mimicking web scraper with a two-pass LLM analysis pipeline. Point it at any subreddit, kick off a scrape job, then trigger an AI analysis — you get back a ranked list of pain points, each with frequency scores, user quotes, and product relevance notes.
+ARIA combines a human-behaviour-mimicking web scraper with a two-pass LLM analysis pipeline. Point it at any subreddit, kick off a scrape job, then trigger an AI analysis — you get back a full intelligence report: executive briefing, ranked pain points with severity and category tags, emerging signals, competitive landscape, and actionable opportunities.
 
 ---
 
@@ -10,10 +10,10 @@ ARIA combines a human-behaviour-mimicking web scraper with a two-pass LLM analys
 
 - **Human-like scraper** — Playwright + Chromium targets `old.reddit.com` (plain HTML, no JS required). Rotates user-agents, randomises viewport, spoofs `navigator.webdriver`, and injects random scroll/delay behaviour to avoid bot detection.
 - **Live job progress** — SSE stream delivers real-time page/post/comment counts to the UI as scraping runs.
-- **Two-pass AI analysis** — Pass 1 uses a cheap fast model (Haiku / GPT-4o-mini / Gemini Flash) to batch-extract pain points from every 25 posts. Pass 2 uses a smarter model (Sonnet / GPT-4o / Gemini Pro) to deduplicate, rank, and annotate them.
+- **Two-pass AI analysis** — Pass 1 uses a cheap fast model (Haiku / GPT-4o-mini / Gemini Flash) to batch-extract pain points with 2-shot prompting, constrained category taxonomy, and severity classification. Pass 2 uses a smarter model (Sonnet / GPT-4o / Gemini Pro) to produce a full intelligence report: executive summary, ranked pain points, emerging signals, competitive landscape, and actionable opportunities.
 - **Multi-provider LLMs** — Anthropic, OpenAI, and Gemini supported; switch per-analysis from the UI.
 - **Auth** — Email/password signup (argon2id via Bun), JWT sessions, forgot/reset password flow.
-- **Clean dashboard** — CareHub-inspired UI: white sidebar, teal-green accent, top search bar, stat cards, per-community analysis history.
+- **Rich analysis dashboard** — Executive briefing with sentiment bars and confidence indicators, severity-coded pain point cards, emerging signal grid, competitive mention table, and impact/effort opportunity cards. PDF export includes all sections.
 
 ---
 
@@ -133,9 +133,9 @@ Navigate to http://localhost:3000/auth/signup and create an account. ARIA is sin
 1. After a scrape completes, click **Analyze** on the community page
 2. Select an AI provider (Anthropic / OpenAI / Gemini)
 3. ARIA runs a two-pass analysis:
-   - **Pass 1** — batches every 25 posts through a fast model to extract raw themes
-   - **Pass 2** — aggregates all batches through a smarter model to deduplicate, rank by frequency, and add product relevance notes
-4. Results appear as ranked pain point cards with frequency bars and example user quotes
+   - **Pass 1** — batches every 25 posts through a fast model with 2-shot examples to extract pain points with categories (12-value taxonomy), severity (acute/chronic/aspirational), and competitive tool mentions
+   - **Pass 2** — aggregates all batches through a smarter model to produce a full intelligence report: executive briefing, merged and ranked pain points, emerging signals, competitive landscape, and actionable product opportunities
+4. Results appear as a structured report: executive summary with sentiment distribution at top, severity-coded pain point cards, emerging signal grid, competitive landscape table, and impact/effort opportunity cards
 
 ### Settings
 

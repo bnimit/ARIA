@@ -27,10 +27,10 @@ export const analyzerWorker = new Worker(
     console.log(`[analyzer.worker] Starting analysis for r/${subreddit} (provider: ${provider})`);
 
     try {
-      // 1. Run analysis
-      const painPoints = await analyzePainPoints(subredditId, apiKey, provider, subreddit);
+      // 1. Run analysis — returns full AnalysisReport
+      const report = await analyzePainPoints(subredditId, apiKey, provider, subreddit);
 
-      if (painPoints.length === 0) {
+      if (report.painPoints.length === 0) {
         console.log(`[analyzer.worker] No pain points extracted for r/${subreddit}`);
         return;
       }
@@ -63,17 +63,17 @@ export const analyzerWorker = new Worker(
       // Determine model label to store
       const modelLabel = getModelLabel(provider);
 
-      // 3. Persist to analyses table
+      // 3. Persist full report to analyses table (painPoints column stores entire report)
       await db.insert(analyses).values({
         subredditId,
         model: modelLabel,
         totalPosts,
         totalComments: commentTotal,
-        painPoints: painPoints as any,
+        painPoints: report as any,
       });
 
       console.log(
-        `[analyzer.worker] Analysis saved for r/${subreddit} — ${painPoints.length} pain points, ${totalPosts} posts analyzed`,
+        `[analyzer.worker] Analysis saved for r/${subreddit} — ${report.painPoints.length} pain points, ${report.emergingThemes.length} emerging themes, ${report.competitiveMentions.length} competitive mentions, ${totalPosts} posts analyzed`,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
